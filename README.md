@@ -20,51 +20,15 @@
 
 ## 安装
 
-### 让 coding agent 帮你装(最简单)
-
-把这个仓库地址发给你的 agent(Claude Code、Codex、Kimi 等),说一句 **「装一下」**:
+把这个仓库地址发给你的 coding agent(Claude Code、Codex、Gemini CLI、Kimi 等),说一句 **「装一下」**:
 
 ```text
 https://github.com/lcbuaaliu/ai-jian-koubo
 ```
 
-agent 会读 README 一步步带你装好,约 1 分钟。
+agent 会读 README,自己把它装到本地 skills 目录、配好环境、跑一遍自检,约 1 分钟。有文件系统权限的 agent 直接帮你装好;没有的话,也能在当前会话里照 [`SKILL.md`](SKILL.md) 直接跑一遍。
 
-### Claude Code 手动安装
-
-把仓库 clone 下来,**重命名为 `AI剪口播`**,放进 Claude 的 skills 目录:
-
-```bash
-git clone https://github.com/lcbuaaliu/ai-jian-koubo.git ~/.claude/skills/AI剪口播
-```
-
-> ⚠️ 文件夹名必须是 `AI剪口播` —— skill 触发词和脚本路径都依赖这个名字。
-
-然后配置火山引擎 API Key(放在 **skills 目录的上一级**,所有引擎共用这一个文件):
-
-```bash
-cp ~/.claude/skills/AI剪口播/.env.example ~/.claude/skills/.env
-# 编辑 ~/.claude/skills/.env,把 your_api_key_here 换成真 key
-```
-
-去[火山引擎新版控制台](https://console.volcengine.com/speech/new/setting/apikeys)生成**一个** API Key,并开通两个资源(各 **20h 免费额度**,独立抵扣):**录音文件识别-极速版**(`auc_turbo`) + **标准版**(`auc`)。默认轮流用,吃满 ≈40h;只想用一个就在转录时加 `--flash` / `--v3-standard`。
-
-最后跑一次自检,缺什么它会告诉你怎么补:
-
-```bash
-node ~/.claude/skills/AI剪口播/scripts/doctor.js
-```
-
-### 其它 Coding Agent(Codex / Gemini CLI / OpenCode 等)
-
-核心流程不依赖 Claude Code。把这个仓库链接发给 agent,让它**从 [`SKILL.md`](SKILL.md) 开始读**,按里面写死的步骤 0-7 执行即可。它只需要在需要时加载引用到的脚本:
-
-- `scripts/run_transcribe.sh` — 抽音频 + 火山引擎转录
-- `scripts/gen_analysis.js` · `merge_selections.js` · `generate_review.js` — 分析与生成审核页
-- `scripts/review_server.js` — 审核服务器 + FCPXML 导出
-- `用户习惯/*.md` — 口误判断规则
-
-有文件系统访问权限的 agent 可以帮你装到本地 skills 目录;没有的话,也能在当前会话里直接照 `SKILL.md` 执行一遍。
+唯一需要你**亲自做**的一步:办一个**火山引擎 API Key**(语音转录用,有免费额度)。去[火山引擎新版控制台](https://console.volcengine.com/speech/new/setting/apikeys)生成**一个** key,并开通两个资源(各 **20h** 免费额度,独立抵扣):**录音文件识别-极速版**(`auc_turbo`) + **标准版**(`auc`)。装的时候 agent 会引导你把 key 填进去。
 
 ## 使用
 
