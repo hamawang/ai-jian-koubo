@@ -7,6 +7,8 @@
 .review_server.pid
 server_url.txt
 review_server.log
+启动审核服务.command
+启动审核服务.sh
 
 # 转录 / 运行产物（用户跑流程时生成，不应进仓库）
 *_result.json

@@ -239,39 +239,26 @@ node "$SKILL_DIR/scripts/generate_review.js" \
   "$BASE_DIR/1_转录/audio.mp3" \
   "$BASE_DIR/3_审核"
 
-# 7. 启动服务器（自动避开已占用端口）+ 打开浏览器
-#    ⚠️ 必须 cd 进 3_审核 再启动，否则静态文件路径错乱
-#    ⚠️ 用 nohup + disown 让进程脱离当前会话：有些 agent 在命令返回后会回收子进程，
-#       直接 `&` 起的服务器会随之退出，浏览器就「拒绝连接」。nohup 让它在会话结束后继续存活。
-LOG="$BASE_DIR/3_审核/review_server.log"
-READY_PORT=""
-for PORT in 8899 8900 8901 8902; do
-  # 占用检测：lsof 比 sleep+kill 可靠
-  if lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1; then continue; fi
-  ( cd "$BASE_DIR/3_审核" && nohup node "$SKILL_DIR/scripts/review_server.js" $PORT "$VIDEO_PATH" </dev/null >"$LOG" 2>&1 & disown ) 2>/dev/null
-  # 轮询端口直到可用（最多 5 秒）
-  for i in 1 2 3 4 5 6 7 8 9 10; do
-    sleep 0.5
-    if curl -fsS "http://localhost:$PORT/" -o /dev/null 2>&1; then
-      READY_PORT=$PORT; break
-    fi
-  done
-  [ -n "$READY_PORT" ] && break
-done
-
-if [ -n "$READY_PORT" ]; then
-  URL="http://localhost:$READY_PORT"
-  echo "✅ 服务器: $URL  （地址也写到了 3_审核/server_url.txt，进程号在 .review_server.pid）"
-  # 跨平台打开浏览器：macOS open / Linux xdg-open / Windows(Git Bash) start
-  open "$URL" 2>/dev/null || xdg-open "$URL" 2>/dev/null || start "" "$URL" 2>/dev/null || true
-  echo "ℹ️ 若浏览器显示「拒绝连接」，多半是服务进程被会话回收。把下面这条复制到一个独立终端重启即可（它会一直挂着）："
-  echo "   ( cd \"$BASE_DIR/3_审核\" && node \"$SKILL_DIR/scripts/review_server.js\" $READY_PORT \"$VIDEO_PATH\" )"
-else
-  echo "❌ 服务器启动失败，查看 $LOG"
-fi
+# 7. 启动审核服务器
+#    serve_review.sh 会自动选端口、在【一个独立的 OS 终端窗口】里前台运行服务器、
+#    健康检查、打开浏览器；若环境禁止开新窗口，会打印一条手动命令兜底。
+#    （不要再用 `&` / nohup 在 agent 后台挂服务——见下方「为什么」。）
+bash "$SKILL_DIR/scripts/serve_review.sh" \
+  "$BASE_DIR/3_审核" "$VIDEO_PATH" "$SKILL_DIR/scripts/review_server.js"
 ```
 
-> **服务器要一直开着**用户才能在网页里审核。如果你（agent）所在的执行环境会在命令返回后杀掉后台进程（部分 agent 沙箱如此），nohup 也保不住——这时**别用后台方式**，直接在一个**独立的、能持续存活的终端**里前台运行上面那条重启命令，让它阻塞挂起，用户审核完再 Ctrl-C。
+> **⚠️ 为什么必须用 `serve_review.sh`，不能直接后台 `&`/nohup 挂服务（重要，否则用户会「拒绝连接」）：**
+> 审核网页要这个本地服务**一直监听端口**。但各 agent 对后台进程的处理不同：
+> - **Claude Code** 有常驻进程管理器，会在整个会话期间替你保活后台进程 → 直接 `&` 也没事；
+> - **某些 agent（如 Codex）** 把每条命令放在临时子进程/沙箱里，命令一返回就**回收整棵进程树**
+>   （连 `nohup`/`disown` 的子进程也杀）→ 端口失联，浏览器报「localhost 拒绝了连接请求」。
+>
+> 所以**不要依赖 agent 替你保活**。`serve_review.sh` 改在 OS 层另起一个真正的终端窗口前台运行
+> （macOS 写可双击的 `.command` 并 `open`；Linux/Windows 起对应终端），它由系统拥有、不随 agent
+> 命令回收。脚本最后还会打印一条 `bash "<3_审核>/启动审核服务.command"` 的手动命令——
+> 万一连开窗口都被禁，让用户在自己的终端里跑这一条、**保持窗口开着**即可。
+>
+> 服务器启动时会把地址写进 `3_审核/server_url.txt`、进程号写进 `.review_server.pid`，方便排障。
 
 用户在网页中：播放片段确认 → 勾选/取消 → 点击「导出 FCPXML」→ 生成的 `*_cut.fcpxml` 拖入剪映或 Final Cut Pro 完成最终剪辑。
 
