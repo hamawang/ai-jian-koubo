@@ -1408,21 +1408,25 @@
     }
     function getDeleteSegments() {
       if (!segsDirty) return cachedDeleteSegs;
-      const segs = [];
-      for (let i = 0; i < words.length; i++) {
-        if (selected.has('word-' + i)) {
-          const w = words[i];
-          segs.push({ start: w.start, end: w.end });
-        }
-      }
-      segs.sort((a, b) => a.start - b.start);
+      // 按词序扫一遍，把「连续删除」连成整刀：两个选中词之间只要没夹着「你保留的真词」
+      // （中间只有静音段 isGap 或字间时间戳零头），就贯穿成一刀，吞掉中间的缝——
+      // 避免连续删除里残留没字可点的声音/空隙（旧版用固定 0.15s 阈值会漏掉 >0.15s 的缝）。
+      // 一旦夹着你保留的真词，才断开成两段，绝不误删要留的内容。
       const out = [];
-      for (const s of segs) {
-        if (!out.length) { out.push({ ...s }); continue; }
-        const last = out[out.length - 1];
-        if (s.start - last.end < 0.15) last.end = s.end;
-        else out.push({ ...s });
+      let cur = null;          // 当前正在累积的删除段
+      let sawKeptWord = false;  // 自上一个选中词以来，中间是否夹了「保留的真词」
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        if (selected.has('word-' + i)) {
+          if (cur && !sawKeptWord) cur.end = w.end;            // 只隔静音/零头 → 连成一刀
+          else { if (cur) out.push(cur); cur = { start: w.start, end: w.end }; }
+          sawKeptWord = false;
+        } else if (!w.isGap) {
+          sawKeptWord = true;   // 保留的真词 → 会切断删除段，不能被吞
+        }
+        // 未选中的 isGap（静音/缝）：不切断 run，留给下一个选中词决定是否吞
       }
+      if (cur) out.push(cur);
       cachedDeleteSegs = out;
       segsDirty = false;
       return out;
